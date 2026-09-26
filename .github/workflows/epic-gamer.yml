@@ -1,0 +1,77 @@
+name: Epic Awesome Gamer (New API)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * 5'
+    - cron: '30 3 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: epic-single-account
+  cancel-in-progress: false
+
+jobs:
+  epic-gamer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EPIC_EMAIL: ${{ secrets.EPIC_EMAIL }}
+      EPIC_PASSWORD: ${{ secrets.EPIC_PASSWORD }}
+      NEW_API_BASE_URL: ${{ secrets.NEW_API_BASE_URL }}
+      NEW_API_API_KEY: ${{ secrets.NEW_API_API_KEY }}
+      NEW_API_MODEL: ${{ secrets.NEW_API_MODEL }}
+      NEW_API_RESPONSE_FORMAT: ${{ vars.NEW_API_RESPONSE_FORMAT || 'json_object' }}
+      EPIC_COUNTRY: ${{ vars.EPIC_COUNTRY || 'CN' }}
+      HEADLESS: 'true'
+      ENABLE_APSCHEDULER: 'false'
+      SAVE_SCREENSHOTS: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv python install 3.12
+
+      - name: Validate required Secrets
+        run: |
+          python - <<'PY'
+          import os
+          required = ['EPIC_EMAIL', 'EPIC_PASSWORD', 'NEW_API_BASE_URL',
+                      'NEW_API_API_KEY', 'NEW_API_MODEL']
+          missing = [name for name in required if not os.environ.get(name, '').strip()]
+          if missing:
+              raise SystemExit('Missing Actions Secrets: ' + ', '.join(missing))
+          print('Required configuration is present')
+          PY
+
+      - name: Install locked dependencies
+        run: uv sync --locked
+
+      - name: Check New API image input and JSON output
+        run: uv run --locked app/check_new_api.py
+
+      - name: Install browser system dependencies
+        run: uv run --locked playwright install-deps firefox
+
+      - name: Install Camoufox
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: uv run --locked camoufox fetch
+
+      - name: Log in and collect free games
+        run: uv run --locked app/deploy.py
+
+      - name: Upload result only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: epic-result
+          path: app/volumes/runtime/result.json
+          if-no-files-found: ignore
+          retention-days: 3
