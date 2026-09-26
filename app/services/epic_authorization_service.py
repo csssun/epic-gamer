@@ -5,7 +5,7 @@ import time
 from urllib.parse import urlsplit
 
 from loguru import logger
-from playwright.async_api import Page
+from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
 from settings import settings, HCAPTCHA_DIR, LOG_DIR
 
@@ -160,7 +160,31 @@ class EpicAuthorization:
             visible = [b for b in await candidates.all() if await b.is_visible()]
             enabled = [b for b in visible if await b.is_enabled()]
             if len(enabled) == 1:
-                await enabled[0].click(timeout=5000)
+                previous_url = self.page.url
+                try:
+                    # The login loop below verifies the resulting session. A slow
+                    # navigation should not make the click itself look like a failure.
+                    await enabled[0].click(timeout=15000, no_wait_after=True)
+                except PlaywrightTimeoutError:
+                    # The click may already have reached Epic. Never submit the
+                    # same credentials twice just because Playwright timed out.
+                    logger.warning('Login submit click timed out; checking page progress')
+                    for _ in range(12):
+                        if self.failure:
+                            raise AuthenticationError(self.failure) from None
+                        if self.page.url != previous_url or await interactive_challenge(self.page):
+                            return
+                        try:
+                            if not await field.is_visible():
+                                return
+                        except PlaywrightTimeoutError:
+                            # A navigation may have invalidated the old input.
+                            return
+                        await asyncio.sleep(0.5)
+                    raise AuthenticationError(
+                        'Login submit click timed out without a page transition or visible challenge; '
+                        'the submission was not retried'
+                    ) from None
                 return
             if len(enabled) > 1:
                 raise AuthenticationError('Multiple submit buttons in active form; refusing to guess')
