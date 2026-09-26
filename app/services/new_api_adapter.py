@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from google.genai import types
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 
 class NewAPIError(RuntimeError):
@@ -168,8 +168,16 @@ class NewAPIClient:
         elif isinstance(schema, type) and issubclass(schema, BaseModel):
             try:
                 parsed = schema.model_validate_json(text)
-            except ValueError:
-                raise NewAPIError('Model returned JSON that does not match the required schema') from None
+            except ValidationError as exc:
+                # Report only field paths and error types. Never print the raw
+                # model output, which may include challenge images or tokens.
+                issues = ', '.join(
+                    '.'.join(str(part) for part in error['loc']) + ': ' + error['type']
+                    for error in exc.errors(include_url=False, include_input=False)[:5]
+                )
+                raise NewAPIError(
+                    f'Model output failed {schema.__name__} validation ({issues})'
+                ) from None
         return types.GenerateContentResponse(candidates=[types.Candidate(
             content=types.Content(role='model', parts=[types.Part.from_text(text=text)]),
             finish_reason='STOP',
