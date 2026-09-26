@@ -1,0 +1,20 @@
+[project]
+name = "epic-awesome-gamer"
+version = "0.4.3"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "apscheduler==3.11.0",
+    "hcaptcha-challenger[camoufox]==0.18.13",
+    "pydantic-settings>=2.11.0",
+    "celery[redis]==5.5.3",
+    "playwright>=1.53.0",
+    "httpx==0.28.1",
+    "loguru==0.7.3",
+    "pytz==2025.2",
+]
+[dependency-groups]
+dev = ["pytest==8.4.1", "ruff==0.12.4"]
+[tool.ruff]
+line-length = 100
+[tool.pytest.ini_options]
+pythonpath = ["app"]

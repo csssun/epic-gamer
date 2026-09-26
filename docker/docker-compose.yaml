@@ -1,0 +1,16 @@
+name: epic-awesome-gamer
+services:
+  epic-awesome-gamer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    restart: "no"
+    init: true
+    shm_size: 1gb
+    env_file:
+      - ../.env
+    environment:
+      HEADLESS: "true"
+      ENABLE_APSCHEDULER: "false"
+    volumes:
+      - ../app/volumes:/app/app/volumes
