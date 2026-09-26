@@ -74,7 +74,9 @@ def make_challenge_agent(page):
     init_log(runtime=LOG_DIR / 'runtime.log', error=LOG_DIR / 'error.log')
     config = AgentConfig(
         # Legacy internal field name only; requests go exclusively to New API.
-        GEMINI_API_KEY=settings.NEW_API_API_KEY,
+        # AgentConfig's before-validator requires str, not SecretStr.
+        # Pydantic wraps the accepted value back into SecretStr internally.
+        GEMINI_API_KEY=settings.NEW_API_API_KEY.get_secret_value(),
         cache_dir=HCAPTCHA_DIR / '.cache',
         challenge_dir=HCAPTCHA_DIR / '.challenge',
         captcha_response_dir=HCAPTCHA_DIR / '.captcha',
